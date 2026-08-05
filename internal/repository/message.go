@@ -47,7 +47,7 @@ func (s *Store) GetAllChatMessages(chat_id int) ([]models.Message, error) {
 		var message models.Message
 		err := rows.Scan(&message.ID, &message.ChatID, &message.SenderID, &message.Content, &message.MarkRead)
 		if err != nil {
-			return models.Message{}, err
+			return nil, err
 		}
 		messages = append(messages, message)
 	}
@@ -55,18 +55,6 @@ func (s *Store) GetAllChatMessages(chat_id int) ([]models.Message, error) {
     return nil, err
 	}
 	return messages, nil
-}
-func (s *Store) UpdateMarkReadToRead(message_id int) error {
-	query := `
-	UPDATE message
-	SET mark_read = true
-	WHERE id = $1
-	`
-	_,err := s.db.Exec(context.Background(), query, message_id, content)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 func (s *Store) DeleteMessage(message_id int) error {
 	query := `
@@ -116,12 +104,13 @@ func (s *Store) GetMessageStatus(MessageID int) (bool,error) {
 	}
 	return status, nil
 }
-func (s *Store) SendMessage(m models.Message) error {
+func (s *Store) UpdateMessage(messageID int,content string) error {
 	query := `
-	INSERT INTO messages (chat_id, sender_id, content)
-	VALUES ($1, $2, $3)
+	UPDATE messages
+	SET content =$1
+	WHERE id = $2
 	`
-	_, err := s.db.Exec(context.Background(), query, m.ChatID, m.SenderID, m.Content)
+	_,err := s.db.Exec(context.Background(), query, content, messageID)
 	if err != nil {
 		return err
 	}
