@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupFollowRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupFollowRoutes(r *gin.RouterGroup, h *controller.FollowHandler) {
 	r.POST("/:id/follow", h.FollowUser)
 	r.DELETE("/:id/follow", h.UnFollowUser)
 	r.GET("/:id/followers", h.GetAllFollowers)

@@ -7,11 +7,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type UserRepo interface {
+	CreateUser(username, firstName, lastName, password string) (*models.UserPublic, error)
+	GetUserById(id int) (models.UserPublic, error)
+	GetPasswordById(id int) (string, error)
+	GetAllUsersExceptId(id int) ([]models.UserPublic, error)
+	GetUserByUsernameExceptId(id int, username string) (models.UserPublic, error)
+	GetUserByUsername(username string) (models.UserPublic, error)
+	GetAllUsers() ([]models.UserPublic, error)
+	UpdateUser(userName, firstName, lastName string, id int) error
+	UpdatePassword(id int, password string) error
+	DeleteUser(id int) error
+	SearchUsers(query string) ([]models.UserPublic, error)
+} 
+
+type MockStore struct{} 
+
 type Store struct {
 	db *pgxpool.Pool
 }
 
-func NewStore(db *pgxpool.Pool) *Store {
+func  NewStore(db *pgxpool.Pool) *Store {
 	return &Store{db: db}
 }
 

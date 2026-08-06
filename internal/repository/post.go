@@ -5,7 +5,16 @@ import (
 	"semen_project/internal/models"
 
 )
-
+type PostRepo interface {
+	CreatePost(userId int, content string) (*models.Post, error)
+	GetPostById(postId int) (models.Post, error)
+	DeletePost(postId int) error
+	GetAllPosts() ([]models.Post, error)
+	GetAllUserPosts(userId int) ([]models.Post, error)
+	UpdatePost(postId int, content string) (*models.Post, error)
+	GetAllFriendsPosts(userId int) ([]models.Post, error)
+	GetAllNotFriendsPosts(userId int) ([]models.Post, error)
+}
 func (s *Store) CreatePost(userId int, content string) (*models.Post, error)  {
 	post := &models.Post{}
 	query := ` INSERT INTO posts (user_id, content)

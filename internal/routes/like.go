@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupLikeRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupLikeRoutes(r *gin.RouterGroup, h *controller.LikeHandler) {
 	r.POST("/posts/:id/like", h.LikePost)
 	r.DELETE("/posts/:id/like", h.DeleteLike)
 	r.GET("/posts/:id/likes/count", h.GetCountLikes)

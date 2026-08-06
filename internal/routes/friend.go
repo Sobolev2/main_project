@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupFriendRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupFriendRoutes(r *gin.RouterGroup, h *controller.FriendHandler) {
 	r.GET("/:id/friends", h.GetAllFriends)
 	r.GET("/friends", h.GetAllMyFriends)
 	r.GET("/:id/friends/count", h.GetCountFriends)

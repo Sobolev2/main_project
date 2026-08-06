@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupUserRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupUserRoutes(r *gin.RouterGroup, h *controller.UserHandler) {
 	r.GET("/me", h.GetMe)
 	r.PUT("/user", h.UpdateUser)
 	r.GET("/users", h.GetAllUsers)

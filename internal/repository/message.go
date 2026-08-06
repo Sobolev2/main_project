@@ -4,6 +4,17 @@ import (
 	"context"
 	"semen_project/internal/models"
 )
+type MessageRepo interface {
+	GetMessageById(messageId int) (models.Message, error)
+	UpdateMarkReadToRead(messageId int) error
+	GetAllChatMessages(chatId int) ([]models.Message, error)
+	UpdateMessage(messageId int, content string) error
+	DeleteMessage(messageId int) error
+	SendMessage(chatID, senderID int, content string) error
+	GetCountNotReadMessages(chatID, userID int) (int, error)
+	GetMessageStatus(messageID int) (bool, error)
+	GetChatById(chatId int) (models.Chat, error)
+}
 func (s *Store) GetMessageById(message_id int) (models.Message, error) {
 	var message models.Message
 	query := `

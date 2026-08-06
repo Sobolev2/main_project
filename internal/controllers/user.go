@@ -11,15 +11,24 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// user
-func (h *Handlers) GetMe(ctx *gin.Context) {
+type UserHandler struct {
+	Repo repository.UserRepo
+}
+
+func NewUserHandler(repo repository.UserRepo) *UserHandler {
+	return &UserHandler{
+		Repo: repo,
+	}
+}
+
+func (h *UserHandler) GetMe(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
 		return			
 	}
 	id := value.(int)
-	user, err := h.DbPool.GetUserById(id)
+	user, err := h.Repo.GetUserById(id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка в получении пользователя по id"})
 		return			
@@ -30,7 +39,7 @@ func (h *Handlers) GetMe(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"user": user})
 }
-func (h *Handlers) UpdateUser(ctx *gin.Context) {
+func (h *UserHandler) UpdateUser(ctx *gin.Context) {
 	var updateUser dto.UpdateUserRequest
 	err := ctx.BindJSON(&updateUser)
 	if err != nil {
@@ -43,7 +52,7 @@ func (h *Handlers) UpdateUser(ctx *gin.Context) {
 		return			
 	} 
 	id := value.(int)
-	LastUser, err := h.DbPool.GetUserById(id)
+	LastUser, err := h.Repo.GetUserById(id)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "пользователь не найден"})
 		return			
@@ -63,7 +72,7 @@ func (h *Handlers) UpdateUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка, все новые данные совпадают с прошлыми"})
 		return		
 	}
-	usedUserName, err := h.DbPool.GetUserByUsernameExceptId(id, updateUser.UserName)
+	usedUserName, err := h.Repo.GetUserByUsernameExceptId(id, updateUser.UserName)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке уникальности username"})
 		return
@@ -72,15 +81,15 @@ func (h *Handlers) UpdateUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Пользователь с таким username уже существует"})
 		return
 	}
-	err = h.DbPool.UpdateUser(updateUser.UserName, updateUser.FirstName, updateUser.LastName, id)
+	err = h.Repo.UpdateUser(updateUser.UserName, updateUser.FirstName, updateUser.LastName, id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении данных пользователя"})
 		return		
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Пользователь успешно обновлен"})
 }
-func (h *Handlers) GetAllUsers(ctx *gin.Context) {
-	users, err := h.DbPool.GetAllUsers()
+func (h *UserHandler) GetAllUsers(ctx *gin.Context) {
+	users, err := h.Repo.GetAllUsers()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех пользователей"})
 		return
@@ -94,7 +103,7 @@ func (h *Handlers) GetAllUsers(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Список пользователей найден", "users": users})
 }
-func (h *Handlers) DeleteUser(ctx *gin.Context) {
+func (h *UserHandler) DeleteUser(ctx *gin.Context) {
 	var password dto.DeleteUserRequest
 	err := ctx.BindJSON(&password)
 	if err != nil {
@@ -112,7 +121,7 @@ func (h *Handlers) DeleteUser(ctx *gin.Context) {
 	}
 	id := value.(int)
 
-	lastPassword, err := h.DbPool.GetPasswordById(id)
+	lastPassword, err := h.Repo.GetPasswordById(id)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return		
@@ -126,14 +135,14 @@ func (h *Handlers) DeleteUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный пароль"})
 		return	
 	}
-	err = h.DbPool.DeleteUser(id)
+	err = h.Repo.DeleteUser(id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении пользователя"})
 		return			
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": " Пользователь успешно удален"})
 }
-func (h *Handlers) UpdatePassword(ctx *gin.Context) {
+func (h *UserHandler) UpdatePassword(ctx *gin.Context) {
 	var passwords dto.UpdatePasswordRequest
 	err := ctx.BindJSON(&passwords)
 	if err != nil {
@@ -157,7 +166,7 @@ func (h *Handlers) UpdatePassword(ctx *gin.Context) {
 	}
 	id := value.(int)
 
-	dbPassword, err := h.DbPool.GetPasswordById(id)
+	dbPassword, err := h.Repo.GetPasswordById(id)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return		
@@ -184,14 +193,14 @@ func (h *Handlers) UpdatePassword(ctx *gin.Context) {
 		return
 	}
 
-	err = h.DbPool.UpdatePassword(id, HashNewPassword)
+	err = h.Repo.UpdatePassword(id, HashNewPassword)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось изменить пароль"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Пароль успешно изменен"})
 }
-func (h *Handlers) GetUserById(ctx *gin.Context) {
+func (h *UserHandler) GetUserById(ctx *gin.Context) {
 	idParam := ctx.Param("id")
 	userID, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -202,7 +211,7 @@ func (h *Handlers) GetUserById(ctx *gin.Context) {
     ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id"})
     return
 	}
-	user, err := h.DbPool.GetUserById(userID)
+	user, err := h.Repo.GetUserById(userID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "пользователь не найден"})
 		return			
@@ -213,7 +222,7 @@ func (h *Handlers) GetUserById(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Пользователь найден", "user": user})
 }
-func (h *Handlers) SearchUsers(ctx *gin.Context) {
+func (h *UserHandler) SearchUsers(ctx *gin.Context) {
 	query := strings.TrimSpace(ctx.Query("query"))
 	if query == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Параметр query не может быть пустым"})
@@ -223,7 +232,7 @@ func (h *Handlers) SearchUsers(ctx *gin.Context) {
     ctx.JSON(http.StatusBadRequest, gin.H{"error": "Минимум 2 символа для поиска"})
     return
 	}
-	users, err := h.DbPool.SearchUsers(query)
+	users, err := h.Repo.SearchUsers(query)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при поиске пользователей"})
 		return
@@ -240,13 +249,13 @@ func (h *Handlers) SearchUsers(ctx *gin.Context) {
 		"users": users,
 	})
 }
-func (h *Handlers) GetUserByUsername(ctx *gin.Context) {
+func (h *UserHandler) GetUserByUsername(ctx *gin.Context) {
 	username := ctx.Param("username")
 	if username == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Параметр username не может быть пустым"})
 		return
 	}
-	user, err := h.DbPool.GetUserByUsername(username)
+	user, err := h.Repo.GetUserByUsername(username)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return

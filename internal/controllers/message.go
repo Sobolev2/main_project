@@ -8,8 +8,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"semen_project/internal/repository"
 )
-func (h *Handlers) SendMessage(ctx *gin.Context) {
+type MessageHandler struct {
+	Repo repository.MessageRepo
+}
+func NewMessageHandler(repo repository.MessageRepo) *MessageHandler {
+	return &MessageHandler{
+		Repo: repo,
+	}
+}
+func (h *MessageHandler) SendMessage(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	chatID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -51,7 +60,7 @@ func (h *Handlers) SendMessage(ctx *gin.Context) {
 		return
 	}
 
-	chat, err := h.DbPool.GetChatById(chatID)
+	chat, err := h.Repo.GetChatById(chatID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Такого чата не существует"})
 		return
@@ -66,7 +75,7 @@ func (h *Handlers) SendMessage(ctx *gin.Context) {
 		return
 	}
 
-	err = h.DbPool.SendMessage(chatID, userID, content.Content)
+	err = h.Repo.SendMessage(chatID, userID, content.Content)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при отправке сообщения"})
 		return
@@ -74,7 +83,7 @@ func (h *Handlers) SendMessage(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Сообщение отправлено"})
 }
-func (h *Handlers) UpdateMessage(ctx *gin.Context) {
+func (h *MessageHandler) UpdateMessage(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	messageID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -116,7 +125,7 @@ func (h *Handlers) UpdateMessage(ctx *gin.Context) {
 		return
 	}
 
-	message, err := h.DbPool.GetMessageById(messageID)
+	message, err := h.Repo.GetMessageById(messageID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Сообщение с таким id не найдено"})
 		return
@@ -131,7 +140,7 @@ func (h *Handlers) UpdateMessage(ctx *gin.Context) {
 		return
 	}
 
-	err = h.DbPool.UpdateMessage(messageID, content.Content)
+	err = h.Repo.UpdateMessage(messageID, content.Content)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении сообщения"})
 		return
@@ -139,7 +148,7 @@ func (h *Handlers) UpdateMessage(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Сообщение успешно отредактировано"})
 }
-func (h *Handlers) DeleteMessage(ctx *gin.Context) {
+func (h *MessageHandler) DeleteMessage(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	messageID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -166,7 +175,7 @@ func (h *Handlers) DeleteMessage(ctx *gin.Context) {
 		return
 	}
 
-	message, err := h.DbPool.GetMessageById(messageID)
+	message, err := h.Repo.GetMessageById(messageID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Cообщение с таким id не найдено"})
 		return
@@ -181,14 +190,14 @@ func (h *Handlers) DeleteMessage(ctx *gin.Context) {
 		return
 	}
 
-	err = h.DbPool.DeleteMessage(messageID)
+	err = h.Repo.DeleteMessage(messageID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении сообщения"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Сообщение успешно удалено"})
 }
-func (h *Handlers) GetAllChatMessages(ctx *gin.Context) {
+func (h *MessageHandler) GetAllChatMessages(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	chatID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -214,7 +223,7 @@ func (h *Handlers) GetAllChatMessages(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id пользователя"})
 		return
 	}	
-	chat, err := h.DbPool.GetChatById(chatID)
+	chat, err := h.Repo.GetChatById(chatID)
 
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Чат с таким id не найден"})
@@ -230,14 +239,14 @@ func (h *Handlers) GetAllChatMessages(ctx *gin.Context) {
 		return
 	}
 
-	messages, err := h.DbPool.GetAllChatMessages(chatID)
+	messages, err := h.Repo.GetAllChatMessages(chatID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех сообщений чата"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"messages": messages})
 }
-func (h *Handlers) GetCountNotReadMessages(ctx *gin.Context) {
+func (h *MessageHandler) GetCountNotReadMessages(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	chatID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -263,7 +272,7 @@ func (h *Handlers) GetCountNotReadMessages(ctx *gin.Context) {
 		return
 	}	
 
-	chat, err := h.DbPool.GetChatById(chatID)
+	chat, err := h.Repo.GetChatById(chatID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "такого чата не существует"})
 		return
@@ -278,14 +287,14 @@ func (h *Handlers) GetCountNotReadMessages(ctx *gin.Context) {
 		return
 	}
 	// получить кол-во непрочитанных сообщений где юзер айди равен другому пользователю из бд
-	count, err := h.DbPool.GetCountNotReadMessages(chatID, userID)
+	count, err := h.Repo.GetCountNotReadMessages(chatID, userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении числа непрочитанных сообщений пользователя"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"count": count})
 }
-func (h *Handlers) UpdateMarkReadToRead(ctx *gin.Context) {
+func (h *MessageHandler) UpdateMarkReadToRead(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	messageID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -311,7 +320,7 @@ func (h *Handlers) UpdateMarkReadToRead(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id пользователя"})
 		return
 	}	
-	message, err := h.DbPool.GetMessageById(messageID)
+	message, err := h.Repo.GetMessageById(messageID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Сообщениe с таким id не существует"})
 		return
@@ -320,7 +329,7 @@ func (h *Handlers) UpdateMarkReadToRead(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении сообщения"})
 		return
 	}
-	chat, err := h.DbPool.GetChatById(message.ChatID)
+	chat, err := h.Repo.GetChatById(message.ChatID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Чат с таким id не найден"})
 		return
@@ -337,7 +346,7 @@ func (h *Handlers) UpdateMarkReadToRead(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": "Вы не можете изменить статус просмотра своего сообщения"})
 		return
 	}
-	status, err := h.DbPool.GetMessageStatus(messageID)
+	status, err := h.Repo.GetMessageStatus(messageID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении статуса сообщения"})
 		return
@@ -346,7 +355,7 @@ func (h *Handlers) UpdateMarkReadToRead(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Сообщение уже прочитано"})
 		return
 	}
-	err = h.DbPool.UpdateMarkReadToRead(messageID)
+	err = h.Repo.UpdateMarkReadToRead(messageID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновалении статуса сообщения"})
 		return

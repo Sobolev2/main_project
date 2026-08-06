@@ -5,7 +5,19 @@ import (
 		"semen_project/internal/models"
 
 )
-
+type FollowRepo interface {
+	FollowUser(followerId, userId int) error
+	UnFollowUser(followerId, userId int) error
+	GetAllUserFollowers(userId int) ([]models.UserPublic, error)
+	GetAllUserFollowing(userId int) ([]models.UserPublic, error)
+	GetFollowStatus(userID, followerID int) (bool, error)
+	GetCountFollowing(userID int) (int, error)
+	GetCountFollowers(userID int) (int, error)
+	GetUserById(userId int) (models.UserPublic, error)
+	CreateFriendship(userFirstId, userSecondId int) error
+	GetFriendship(userFirstID, userSecondID int) (bool, error)
+	DeleteFriend(userFirstId, userSecondId int) error
+}
 func (s *Store) FollowUser(follower_id int, user_id int) error{
 	query := `
 	INSERT INTO followers (follower_id, user_id)
@@ -104,7 +116,6 @@ func (s *Store) GetCountFollowing(userID int) (int, error) {
 	}
 	return count, nil
 }
-
 func (s *Store) GetCountFollowers(userID int) (int, error) {
 	query := `
 	SELECT COUNT(*)

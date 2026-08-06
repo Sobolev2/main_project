@@ -5,9 +5,17 @@ import (
 	"strconv"
 	"github.com/jackc/pgx/v5"
 	"github.com/gin-gonic/gin"
+	"semen_project/internal/repository"
 )
-
-func (h *Handlers) GetAllFriends(ctx *gin.Context) {
+type FriendHandler struct {
+	Repo repository.FriendRepo
+}
+func NewFriendHandler(repo repository.FriendRepo) *FriendHandler {
+	return &FriendHandler{
+		Repo: repo,
+	}
+}
+func (h *FriendHandler) GetAllFriends(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	userID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -18,14 +26,14 @@ func (h *Handlers) GetAllFriends(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "id должен быть положительным числом"})
 		return
 	}
-	friends, err := h.DbPool.GetAllUserFriends(userID)
+	friends, err := h.Repo.GetAllUserFriends(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении друзей"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"friends": friends})
 }
-func (h *Handlers) GetAllMyFriends(ctx *gin.Context) {
+func (h *FriendHandler) GetAllMyFriends(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат id"})
@@ -36,14 +44,14 @@ func (h *Handlers) GetAllMyFriends(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "id должен быть положительным числом"})
 		return
 	}
-	friends, err := h.DbPool.GetAllUserFriends(userID)
+	friends, err := h.Repo.GetAllUserFriends(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех друзей"})
 		return		
 	}
 	ctx.JSON(http.StatusOK, gin.H{"friends": friends})
 }
-func (h *Handlers) GetCountFriends(ctx *gin.Context) {
+func (h *FriendHandler) GetCountFriends(ctx *gin.Context) {
 	idParam := ctx.Param("id")
 	userID, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -54,14 +62,14 @@ func (h *Handlers) GetCountFriends(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "id должен быть положительным числом"})
 		return
 	}
-	countFriends, err := h.DbPool.GetCountFriends(userID)
+	countFriends, err := h.Repo.GetCountFriends(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении колличества друзей"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"count_friends": countFriends})
 }
-func (h *Handlers) CheckFriendship(ctx *gin.Context) {
+func (h *FriendHandler) CheckFriendship(ctx *gin.Context) {
 	idParam := ctx.Param("id")
 	userSecondID, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -82,7 +90,7 @@ func (h *Handlers) CheckFriendship(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Пользователь не авторизован"})
 		return
 	}
-	friendship, err := h.DbPool.GetFriendship(userID, userSecondID)
+	friendship, err := h.Repo.GetFriendship(userID, userSecondID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusOK, gin.H{"message": "Данный пользователь не является вашим другом", "friendship": friendship})
 		return	

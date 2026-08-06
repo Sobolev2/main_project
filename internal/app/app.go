@@ -7,13 +7,13 @@ import (
 
 	"semen_project/internal/config"
 	"semen_project/internal/controllers"
+	"semen_project/internal/repository"
 	"semen_project/internal/routes"
 	"semen_project/internal/storage"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Run основная функция запуска приложения
 func Run(cfg *config.Config) error {
 	ctx := context.Background()
 	slog.Info("initializing application", "app_name", cfg.AppName)
@@ -30,10 +30,12 @@ func Run(cfg *config.Config) error {
 
 	slog.Info("PostgreSQL connection established")
 
-	handler := controllers.NewHandlers(dbPool, cfg.JWTSecret)
+	store := repository.NewStore(dbPool)
+	
+	handlers := controllers.NewHandlers(store, cfg.JWTSecret)
 
 	router := gin.Default()
-	routes.SetupRoutes(router, handler, cfg.JWTSecret)
+	routes.SetupRoutes(router, handlers, cfg.JWTSecret)
 	if err := router.Run(fmt.Sprintf(":%d", cfg.PublicApiPort)); err != nil {
 		return fmt.Errorf("server run failed: %w", err)
 	}

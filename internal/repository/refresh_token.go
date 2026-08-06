@@ -5,6 +5,16 @@ import (
 	"context"
 	"semen_project/internal/models"
 )
+type RefreshTokenRepo interface {
+
+	SaveRefreshToken(userID int, tokenHash string) error
+	DeleteRefreshTokenById(tokenID int) error
+	DeleteAllUserRefreshTokensExceptThis(userID int, tokenHash string) error
+	GetRefreshTokenById(tokenID int) (models.RefreshToken, error)
+	UpdateRefreshToken(r models.RefreshToken) error
+	GetRefreshTokenByTokenHash(hashToken string) (models.RefreshToken, error)
+	DeleteRefreshTokenByTokenHash(tokenHash string) error
+}
 
 func (s *Store) SaveRefreshToken(userID int, tokenHash string) error {
 	query := `

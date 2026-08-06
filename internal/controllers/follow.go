@@ -5,9 +5,17 @@ import (
 	"strconv"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"semen_project/internal/repository"
 )
-
-func (h *Handlers) FollowUser(ctx *gin.Context) {
+type FollowHandler struct {
+	Repo repository.FollowRepo
+}
+func NewFollowHandler(repo repository.FollowRepo) *FollowHandler {
+	return &FollowHandler{
+		Repo: repo,
+	}
+}
+func (h *FollowHandler) FollowUser(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -32,7 +40,7 @@ func (h *Handlers) FollowUser(ctx *gin.Context) {
     ctx.JSON(http.StatusBadRequest, gin.H{"error": "нельзя подписаться на самого себя"})
     return
 	}
-	_ , err = h.DbPool.GetUserById(followingUserID)
+	_ , err = h.Repo.GetUserById(followingUserID)
 	if err == pgx.ErrNoRows {
     ctx.JSON(http.StatusBadRequest, gin.H{"error": "пользователя не существует"})
     return
@@ -41,7 +49,7 @@ func (h *Handlers) FollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке пользователя"})
 		return
 	}
-	friendship, err := h.DbPool.GetFollowStatus(followingUserID, userID)
+	friendship, err := h.Repo.GetFollowStatus(followingUserID, userID)
 	if err != pgx.ErrNoRows && err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при проверке подписки"})
 		return
@@ -50,18 +58,18 @@ func (h *Handlers) FollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "вы уже подписаны на данного пользователя"})
 		return
 	}
-	checkFollowingToUserStatus, err := h.DbPool.GetFollowStatus(userID, followingUserID)
+	checkFollowingToUserStatus, err := h.Repo.GetFollowStatus(userID, followingUserID)
 	if err != pgx.ErrNoRows && err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при проверке статуса подписки"})
 		return
 	}
 	if checkFollowingToUserStatus {
-		err = h.DbPool.UnFollowUser(followingUserID, userID)
+		err = h.Repo.UnFollowUser(followingUserID, userID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при удалении подписки пользователя"})
 			return
 		}
-		err = h.DbPool.CreateFriendship(userID, followingUserID)
+		err = h.Repo.CreateFriendship(userID, followingUserID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при создании дружбы"})
 			return
@@ -69,14 +77,14 @@ func (h *Handlers) FollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"message": "вы успешно добавили пользователя в друзья"})
 		return
 	}
-	err = h.DbPool.FollowUser(userID, followingUserID)
+	err = h.Repo.FollowUser(userID, followingUserID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при создании подписки"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Вы успешно подписались на пользователя"})
 }
-func (h *Handlers) UnFollowUser(ctx *gin.Context) {
+func (h *FollowHandler) UnFollowUser(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -102,7 +110,7 @@ func (h *Handlers) UnFollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "вы не можете отписаться/подписаться на себя"})
 		return
 	}
-	_, err = h.DbPool.GetUserById(unFollowingUserID)
+	_, err = h.Repo.GetUserById(unFollowingUserID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователя с таким id не существует"})
 		return
@@ -111,7 +119,7 @@ func (h *Handlers) UnFollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	_, err = h.DbPool.GetFollowStatus(unFollowingUserID, userID)
+	_, err = h.Repo.GetFollowStatus(unFollowingUserID, userID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Вы не подписаны на данного пользователя"})
 		return
@@ -120,19 +128,19 @@ func (h *Handlers) UnFollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке подписки"})
 		return
 	}
-	statusFollowingToUser, err := h.DbPool.GetFriendship(userID, unFollowingUserID)
+	statusFollowingToUser, err := h.Repo.GetFriendship(userID, unFollowingUserID)
 	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении статуса подписки"})
 		return
 	}
 	if statusFollowingToUser {
-		err = h.DbPool.DeleteFriend(userID, unFollowingUserID)
+		err = h.Repo.DeleteFriend(userID, unFollowingUserID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении дружбы"})
 			return
 		}
 
-		err = h.DbPool.FollowUser(unFollowingUserID, userID)
+		err = h.Repo.FollowUser(unFollowingUserID, userID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при добавлении пользователя в подписки"})
 			return
@@ -140,14 +148,14 @@ func (h *Handlers) UnFollowUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"message": "Вы успешно отписались от пользователя"})
 		return
 	}
-	err = h.DbPool.UnFollowUser(userID, unFollowingUserID)
+	err = h.Repo.UnFollowUser(userID, unFollowingUserID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении подписки"})
 		return	
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Вы успешно отписались от пользователя"})
 }
-func (h *Handlers) GetAllFollowers(ctx *gin.Context) {
+func (h *FollowHandler) GetAllFollowers(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	userID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -158,14 +166,14 @@ func (h *Handlers) GetAllFollowers(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "некоректный id"})
 		return
 	}
-	followers, err := h.DbPool.GetAllUserFollowers(userID)
+	followers, err := h.Repo.GetAllUserFollowers(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех подписчиков"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"followers": followers})
 }
-func (h *Handlers) GetAllFollowing(ctx *gin.Context) {
+func (h *FollowHandler) GetAllFollowing(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	userID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -176,14 +184,14 @@ func (h *Handlers) GetAllFollowing(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "некоректный id"})
 		return
 	}
-	following, err := h.DbPool.GetAllUserFollowing(userID)
+	following, err := h.Repo.GetAllUserFollowing(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех подписок"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"followings": following})
 }
-func (h *Handlers) GetCountFollowers(ctx *gin.Context) {
+func (h *FollowHandler) GetCountFollowers(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	userID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -194,14 +202,14 @@ func (h *Handlers) GetCountFollowers(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "некоректный id"})
 		return
 	}
-	count, err := h.DbPool.GetCountFollowers(userID)
+	count, err := h.Repo.GetCountFollowers(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении колличества подписчиков"})
 		return		
 	}
 	ctx.JSON(http.StatusOK, gin.H{"followers_count": count})
 }
-func (h *Handlers) GetCountFollowing(ctx *gin.Context) {
+func (h *FollowHandler) GetCountFollowing(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	userID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -212,14 +220,14 @@ func (h *Handlers) GetCountFollowing(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "некоректный id"})
 		return
 	}
-	count, err := h.DbPool.GetCountFollowing(userID)
+	count, err := h.Repo.GetCountFollowing(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении колличества подписок"})
 		return		
 	}
 	ctx.JSON(http.StatusOK, gin.H{"following_count": count})
 }
-func (h *Handlers) CheckFollowStatus(ctx *gin.Context) {
+func (h *FollowHandler) CheckFollowStatus(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	secondUserID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -244,7 +252,7 @@ func (h *Handlers) CheckFollowStatus(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Вы не можете получить статус подписки с самим собой"})
 		return
 	}
-	_, err = h.DbPool.GetUserById(secondUserID)
+	_, err = h.Repo.GetUserById(secondUserID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Пользователя с таким id не существует"})
 		return
@@ -253,12 +261,12 @@ func (h *Handlers) CheckFollowStatus(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении пользователя"})
 		return
 	}
-	heFollowsMe, err := h.DbPool.GetFollowStatus(userID, secondUserID)
+	heFollowsMe, err := h.Repo.GetFollowStatus(userID, secondUserID)
 	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении статуса подписки пользователя"})
 		return
 	}
-	iFollow, err := h.DbPool.GetFollowStatus(secondUserID,userID)
+	iFollow, err := h.Repo.GetFollowStatus(secondUserID,userID)
 	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении статуса подписки пользователя"})
 		return

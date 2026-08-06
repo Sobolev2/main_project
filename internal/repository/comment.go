@@ -5,7 +5,16 @@ import (
 	"semen_project/internal/models"
 
 )
-
+type CommentRepo interface {
+	CreateComment(postID, userID int, content string) error
+	DeleteComment(commentId int) error
+	UpdateComment(commentId int, content string) error
+	GetAllPostComments(postId int) ([]models.Comment, error)
+	GetCommentById(commentId int) (models.Comment, error)
+	GetAllUserCommentsUnderCurrentPost(postID, userID int) ([]models.Comment, error)
+	GetCountComments(postID int) (int, error)
+	GetPostById(postId int) (models.Post, error)
+}
 func (s *Store) CreateComment(postID int, userID int, content string) error{
 	query := `
 	INSERT INTO comments (post_id, user_id, content)

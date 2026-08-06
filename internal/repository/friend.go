@@ -5,6 +5,14 @@ import (
 	"semen_project/internal/models"
 
 )
+type FriendRepo interface {
+	CreateFriendship(userFirstId, userSecondId int) error
+	DeleteFriend(userFirstId, userSecondId int) error
+	GetAllUserFriends(userId int) ([]models.UserPublic, error)
+	GetCountFriends(userID int) (int, error)
+	GetFriendship(userFirstID, userSecondID int) (bool, error)
+}
+
 func (s *Store) CreateFriendship(user_first_id int, user_second_id int) error {
 	if user_first_id > user_second_id {
 		user_first_id, user_second_id = user_second_id, user_first_id

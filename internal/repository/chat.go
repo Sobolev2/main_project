@@ -5,7 +5,14 @@ import (
 	"semen_project/internal/models"
 )
 
-
+type ChatRepo interface {
+	GetChatById(chatId int) (models.Chat, error)
+	CreateChat(userFirstId, userSecondId int) error
+	GetAllUserChats(userId int) ([]models.Chat, error)
+	DeleteChat(chatId int) error
+	GetChatByUsersID(userFirstId, userSecondId int) (models.Chat, error)
+	GetUserById(userId int) (models.UserPublic, error)
+}
 func (s *Store) GetChatById(chat_id int) (models.Chat, error) {
 	var chat models.Chat
 	query := `

@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupCommentRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupCommentRoutes(r *gin.RouterGroup, h *controller.CommentHandler) {
 	r.POST("/posts/:id/comments", h.CreateComment)
 	r.DELETE("/comments/:id", h.DeleteComment)
 	r.PATCH("/comments/:id", h.UpdateComment)

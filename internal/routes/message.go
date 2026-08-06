@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupMessageRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupMessageRoutes(r *gin.RouterGroup, h *controller.MessageHandler) {
 	r.POST("/chats/:id/messages", h.SendMessage)
 	r.PATCH("/messages/:id", h.UpdateMessage)
 	r.DELETE("/messages/:id", h.DeleteMessage)

@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupPostRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupPostRoutes(r *gin.RouterGroup, h *controller.PostHandler) {
 	r.POST("/posts", h.CreatePost)
 	r.GET("/posts/:id", h.GetPostById)
 	r.GET("/feed", h.GetFeed)

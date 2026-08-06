@@ -5,9 +5,17 @@ import (
 	"strconv"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"semen_project/internal/repository"
 )
-
-func (h *Handlers) CreateChat(ctx *gin.Context) {
+type ChatHandler struct {
+	Repo repository.ChatRepo
+}
+func NewChatHandler(repo repository.ChatRepo) *ChatHandler {
+	return &ChatHandler{
+		Repo: repo,
+	}
+}
+func (h *ChatHandler) CreateChat(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -37,7 +45,7 @@ func (h *Handlers) CreateChat(ctx *gin.Context) {
 		return
 	}
 
-	_, err = h.DbPool.GetUserById(userSecondID)
+	_, err = h.Repo.GetUserById(userSecondID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return
@@ -49,7 +57,7 @@ func (h *Handlers) CreateChat(ctx *gin.Context) {
 	}
 
 	// Проверяем существование чата
-	chat, err := h.DbPool.GetChatByUsersID(userID, userSecondID)
+	chat, err := h.Repo.GetChatByUsersID(userID, userSecondID)
 
 	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке существования чата"})
@@ -62,7 +70,7 @@ func (h *Handlers) CreateChat(ctx *gin.Context) {
 	}
 
 	// Создаем чат
-	err = h.DbPool.CreateChat(userID, userSecondID)
+	err = h.Repo.CreateChat(userID, userSecondID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании чата"})
 		return
@@ -70,7 +78,7 @@ func (h *Handlers) CreateChat(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Чат успешно создан"})
 }
-func (h *Handlers) GetAllUserChats(ctx *gin.Context) {
+func (h *ChatHandler) GetAllUserChats(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -81,14 +89,14 @@ func (h *Handlers) GetAllUserChats(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "некорректный userID"})
 		return			
 	}
-	chats, err := h.DbPool.GetAllUserChats(userID)
+	chats, err := h.Repo.GetAllUserChats(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении чатов пользователя"})
 		return			
 	}
 	ctx.JSON(http.StatusOK, gin.H{"chats": chats})
 }
-func (h *Handlers) DeleteChat(ctx *gin.Context) {
+func (h *ChatHandler) DeleteChat(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -109,7 +117,7 @@ func (h *Handlers) DeleteChat(ctx *gin.Context) {
 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id"})
 	return
 	}
-	chat, err := h.DbPool.GetChatById(chatID)
+	chat, err := h.Repo.GetChatById(chatID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Чат не найден"})
 		return			
@@ -122,14 +130,14 @@ func (h *Handlers) DeleteChat(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": "Вы не можете удалить чужой чат"})
 		return			
 	}
-	err = h.DbPool.DeleteChat(chatID)
+	err = h.Repo.DeleteChat(chatID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении чата"})
 		return			
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Чат успешно удален"})
 }
-func (h *Handlers) GetChatByUserID(ctx *gin.Context) {
+func (h *ChatHandler) GetChatByUserID(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "userID не найден в контексте"})
@@ -150,7 +158,7 @@ func (h *Handlers) GetChatByUserID(ctx *gin.Context) {
 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id"})
 	return
 	}
-	chat, err := h.DbPool.GetChatByUsersID(userID, otherUserID)
+	chat, err := h.Repo.GetChatByUsersID(userID, otherUserID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Чат не найден"})
 		return			

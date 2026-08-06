@@ -15,16 +15,16 @@ func SetupRoutes(r *gin.Engine, h *controller.Handlers, secret string) {
 
     private.Use(middleware.AuthMiddleware(secret))
 
-    SetupPublicAuthenticationRoutes(public, h)
+    SetupPublicAuthenticationRoutes(public, h.AuthHandler)
 
-    SetupPrivateAuthenticationRoutes(private, h)
+    SetupPrivateAuthenticationRoutes(private, h.AuthHandler)
 
-    SetupUserRoutes(private, h)
-    SetupPostRoutes(private, h)
-    SetupMessageRoutes(private, h)
-    SetupLikeRoutes(private, h)
-    SetupFriendRoutes(private, h)
-    SetupFollowRoutes(private, h)
-    SetupCommentRoutes(private, h)
-    SetupChatRoutes(private, h)
+    SetupUserRoutes(private, h.UserHandler)
+    SetupPostRoutes(private, h.PostHandler)
+    SetupMessageRoutes(private, h.MessageHandler)
+    SetupLikeRoutes(private, h.LikeHandler)
+    SetupFriendRoutes(private, h.FriendHandler)
+    SetupFollowRoutes(private, h.FollowHandler)
+    SetupCommentRoutes(private, h.CommentHandler)
+    SetupChatRoutes(private, h.ChatHandler)
 }

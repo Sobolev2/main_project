@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupChatRoutes(r *gin.RouterGroup, h *controller.Handlers) {
+func SetupChatRoutes(r *gin.RouterGroup, h *controller.ChatHandler) {
 	r.POST("/users/:id/chat", h.CreateChat)
 	r.GET("/chats", h.GetAllUserChats)
 	r.DELETE("/chats/:id", h.DeleteChat)

@@ -5,7 +5,16 @@ import (
 	"semen_project/internal/models"
 
 )
-
+type LikeRepo interface {
+	CreateLike(postId, userId int) error
+	DeleteLike(postID, userID int) error
+	GetAllUserLikes(userId int) ([]models.Like, error)
+	GetAllPostLikes(postId int) ([]models.Like, error)
+	GetLikeStatus(postID, userID int) (bool, error)
+	GetCountLikes(postID int) (int, error)
+	GetPostById(postId int) (models.Post, error)
+	GetUserById(userId int) (models.UserPublic, error)
+}
 func (s *Store) CreateLike(post_id int, user_id int) error {
 	query := `
 	INSERT INTO likes (post_id, user_id)

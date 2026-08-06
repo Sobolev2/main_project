@@ -8,9 +8,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"semen_project/internal/repository"
 )
-
-func (h *Handlers) CreateComment(ctx *gin.Context) {
+type CommentHandler struct {
+	Repo repository.CommentRepo
+}
+func NewCommentHandler(repo repository.CommentRepo) *CommentHandler {
+	return &CommentHandler{
+		Repo: repo,
+	}
+}
+func (h *CommentHandler) CreateComment(ctx *gin.Context) {
 	var content commentrequests.CreateComment
 	err := ctx.BindJSON(&content)
 	if err != nil {
@@ -45,7 +53,7 @@ func (h *Handlers) CreateComment(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id поста"})
 		return
 	}
-	_, err = h.DbPool.GetPostById(postID)
+	_, err = h.Repo.GetPostById(postID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Поста с таким id не существует"})
 		return
@@ -54,14 +62,14 @@ func (h *Handlers) CreateComment(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
 		return
 	}
-	err = h.DbPool.CreateComment(postID, userID, content.Content)
+	err = h.Repo.CreateComment(postID, userID, content.Content)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при создании комментария"})
 		return
 	}
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Комментарий успешно отправлен"})
 }
-func (h *Handlers) DeleteComment(ctx *gin.Context) {
+func (h *CommentHandler) DeleteComment(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	commentID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -78,7 +86,7 @@ func (h *Handlers) DeleteComment(ctx *gin.Context) {
 		return
 	}
 	userID := value.(int)
-	comment, err := h.DbPool.GetCommentById(commentID)
+	comment, err := h.Repo.GetCommentById(commentID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Комментарий с таким id не найден"})
 		return
@@ -91,14 +99,14 @@ func (h *Handlers) DeleteComment(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": "Вы не можете удалить чужой комментарий"})
 		return
 	}
-	err = h.DbPool.DeleteComment(commentID)
+	err = h.Repo.DeleteComment(commentID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении комментария"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Комментарий успешно удален"})
 }
-func (h *Handlers) UpdateComment(ctx *gin.Context) {
+func (h *CommentHandler) UpdateComment(ctx *gin.Context) {
 	var content commentrequests.UpdateComment
 	err := ctx.BindJSON(&content)
 	if err != nil {
@@ -133,7 +141,7 @@ func (h *Handlers) UpdateComment(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id поста"})
 		return
 	}
-	comment, err := h.DbPool.GetCommentById(commentID)
+	comment, err := h.Repo.GetCommentById(commentID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Комментарий не найден"})
 		return
@@ -146,14 +154,14 @@ func (h *Handlers) UpdateComment(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": "Вы не можете обновить чужой комментарий"})
 		return
 	}
-	err = h.DbPool.UpdateComment(commentID, content.Content)
+	err = h.Repo.UpdateComment(commentID, content.Content)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при обновлении комментария"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Комментарий успешно обновлен"})
 }
-func (h *Handlers) GetAllPostComments(ctx *gin.Context) {
+func (h *CommentHandler) GetAllPostComments(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	postID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -164,7 +172,7 @@ func (h *Handlers) GetAllPostComments(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id поста"})
 		return
 	}
-	_, err = h.DbPool.GetPostById(postID)
+	_, err = h.Repo.GetPostById(postID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пост не найден"})
 		return
@@ -173,7 +181,7 @@ func (h *Handlers) GetAllPostComments(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста "})
 		return
 	}
-	comments, err := h.DbPool.GetAllPostComments(postID)
+	comments, err := h.Repo.GetAllPostComments(postID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении всех комментариев"})
 		return
@@ -181,7 +189,7 @@ func (h *Handlers) GetAllPostComments(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"comments": comments})
 	
 }
-func (h *Handlers) GetCountComments(ctx *gin.Context) {
+func (h *CommentHandler) GetCountComments(ctx *gin.Context) {
 	idparam := ctx.Param("id")
 	postID, err := strconv.Atoi(idparam)
 	if err != nil {
@@ -192,7 +200,7 @@ func (h *Handlers) GetCountComments(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Некорректный id поста"})
 		return
 	}
-	_, err = h.DbPool.GetPostById(postID)
+	_, err = h.Repo.GetPostById(postID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пост не найден"})
 		return
@@ -201,7 +209,7 @@ func (h *Handlers) GetCountComments(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
 		return
 	}
-	count, err := h.DbPool.GetCountComments(postID)
+	count, err := h.Repo.GetCountComments(postID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении числа комментариев"})
 		return

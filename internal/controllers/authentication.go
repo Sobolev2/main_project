@@ -10,8 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 )
-
-func (h *Handlers) Register(ctx *gin.Context) {
+type AuthHandler struct {
+	Repo repository.AuthRepo
+	Secret string
+}
+func NewAuthHandler(repo repository.AuthRepo, secret string) *AuthHandler {
+	return &AuthHandler{
+		Repo: repo,
+		Secret: secret,
+	}
+}
+func (h *AuthHandler) Register(ctx *gin.Context) {
 	var user dto.RegisterRequest
 	err := ctx.BindJSON(&user)
 	if err != nil {
@@ -28,7 +37,7 @@ func (h *Handlers) Register(ctx *gin.Context) {
 	})
 	return
 	}
-	checkUserName, err := h.DbPool.GetUserByUsername(user.UserName)
+	checkUserName, err := h.Repo.GetUserByUsername(user.UserName)
 	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка базы данных при проверке UserName"})
 		return		
@@ -42,14 +51,14 @@ func (h *Handlers) Register(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при хешировании пароля"})
 		return
 	}
-	createdUser, err := h.DbPool.CreateUser(user.UserName, user.FirstName, user.LastName, user.Password)
+	createdUser, err := h.Repo.CreateUser(user.UserName, user.FirstName, user.LastName, user.Password)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Не получилось создать Пользователя"})
 		return
 	}
 	ctx.JSON(http.StatusCreated, gin.H{"user": createdUser})
 }
-func (h *Handlers) Login(ctx *gin.Context) {
+func (h *AuthHandler) Login(ctx *gin.Context) {
 
 	// проверка на пустые поля и валидация данных
 
@@ -63,7 +72,7 @@ func (h *Handlers) Login(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "UserName и Password не могут быть пустыми"})
 		return
 	}
-	usercheck, err := h.DbPool.GetUserByUsername(loginData.UserName)
+	usercheck, err := h.Repo.GetUserByUsername(loginData.UserName)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return		
@@ -72,7 +81,7 @@ func (h *Handlers) Login(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка базы данных при проверке UserName"})
 		return			
 	}
-	userCheckPassword, err	:= h.DbPool.GetPasswordById(usercheck.ID)
+	userCheckPassword, err	:= h.Repo.GetPasswordById(usercheck.ID)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
 		return		
@@ -101,14 +110,14 @@ func (h *Handlers) Login(ctx *gin.Context) {
 	}
 	refreshTokenHash := repository.HashRefreshToken(refreshToken)
 
-	err = h.DbPool.SaveRefreshToken(usercheck.ID, refreshTokenHash)
+	err = h.Repo.SaveRefreshToken(usercheck.ID, refreshTokenHash)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при сохранении refresh токена"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"access_token": accessToken, "refresh_token": refreshToken})
 }
-func (h *Handlers) Refresh(ctx *gin.Context) {
+func (h *AuthHandler) Refresh(ctx *gin.Context) {
 	var refreshToken dto.RefreshRequest
 	err := ctx.BindJSON(&refreshToken)
 	if err != nil {
@@ -118,7 +127,7 @@ func (h *Handlers) Refresh(ctx *gin.Context) {
 
 	hashToken := repository.HashRefreshToken(refreshToken.RefreshToken)
 
-	RealToken, err := h.DbPool.GetRefreshTokenByTokenHash(hashToken)
+	RealToken, err := h.Repo.GetRefreshTokenByTokenHash(hashToken)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
 		return		
@@ -128,7 +137,7 @@ func (h *Handlers) Refresh(ctx *gin.Context) {
 		return			
 	}
 	if RealToken.ExpiresAt.Before(time.Now()) {
-    _ = h.DbPool.DeleteRefreshTokenByTokenHash(RealToken.TokenHash)
+    _ = h.Repo.DeleteRefreshTokenByTokenHash(RealToken.TokenHash)
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh токен истек"})
 		return
 	}
@@ -141,7 +150,7 @@ func (h *Handlers) Refresh(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"access_token": NewAccessToken})
 }
-func (h *Handlers) Logout(ctx *gin.Context) {
+func (h *AuthHandler) Logout(ctx *gin.Context) {
 	var refreshToken dto.LogoutRequest
 	err := ctx.BindJSON(&refreshToken)
 	if err != nil {
@@ -151,7 +160,7 @@ func (h *Handlers) Logout(ctx *gin.Context) {
 
 	tokenHash := repository.HashRefreshToken(refreshToken.RefreshToken)
 
-	tokenToCompare, err := h.DbPool.GetRefreshTokenByTokenHash(tokenHash)
+	tokenToCompare, err := h.Repo.GetRefreshTokenByTokenHash(tokenHash)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
 		return		
@@ -161,12 +170,12 @@ func (h *Handlers) Logout(ctx *gin.Context) {
 		return			
 	}
 	if tokenToCompare.ExpiresAt.Before(time.Now()) {
-		_ = h.DbPool.DeleteRefreshTokenByTokenHash(tokenHash)
+		_ = h.Repo.DeleteRefreshTokenByTokenHash(tokenHash)
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh токен истек"})
 		return
 	}
 	
-	err = h.DbPool.DeleteRefreshTokenByTokenHash(tokenHash)
+	err = h.Repo.DeleteRefreshTokenByTokenHash(tokenHash)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при удалении refresh токена"})
 		return
@@ -175,7 +184,7 @@ func (h *Handlers) Logout(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Вы успешно вышли из аккаунта"})
 	// нужно ли как-то забрать у пользователя access токен??
 }
-func (h *Handlers) LogoutAllDevicesExceptThis(ctx *gin.Context) {
+func (h *AuthHandler) LogoutAllDevicesExceptThis(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка при чтении токена"})
@@ -191,7 +200,7 @@ func (h *Handlers) LogoutAllDevicesExceptThis(ctx *gin.Context) {
 	}
 	hashThisToken := repository.HashRefreshToken(thisToken.RefreshToken)
 
-	tokenToCompare, err := h.DbPool.GetRefreshTokenByTokenHash(hashThisToken)
+	tokenToCompare, err := h.Repo.GetRefreshTokenByTokenHash(hashThisToken)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Токен не найден"})
 		return		
@@ -209,7 +218,7 @@ func (h *Handlers) LogoutAllDevicesExceptThis(ctx *gin.Context) {
 		return
 	}
 
-	err = h.DbPool.DeleteAllUserRefreshTokensExceptThis(id, hashThisToken)
+	err = h.Repo.DeleteAllUserRefreshTokensExceptThis(id, hashThisToken)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при выходе с аккаунта на всех устройствах"})
 		return	

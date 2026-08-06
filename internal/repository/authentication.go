@@ -7,7 +7,19 @@ import (
 	"crypto/rand"
 	"github.com/golang-jwt/jwt/v5"
 	"errors"
+	"semen_project/internal/models"
 )
+type AuthRepo interface {
+	GetUserByUsername(username string) (models.UserPublic, error)
+	GetPasswordById(id int) (string, error)
+	CreateUser(username, firstName, lastName, password string) (*models.UserPublic, error)
+	DeleteAllUserRefreshTokensExceptThis(userID int, tokenHash string) error
+
+	SaveRefreshToken(userID int, tokenHash string) error
+	GetRefreshTokenByTokenHash(hash string) (models.RefreshToken, error)
+
+	DeleteRefreshTokenByTokenHash(tokenHash string) error
+}
 type Claims struct {
 	UserID int `json:"user_id"`
 	jwt.RegisteredClaims
@@ -62,3 +74,5 @@ func HashRefreshToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
+
+

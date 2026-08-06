@@ -2,13 +2,28 @@ package controllers
 
 import (
 	"semen_project/internal/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 type Handlers struct {
-	DbPool *repository.Store
-	Secret string
+	AuthHandler    *AuthHandler
+	ChatHandler    *ChatHandler
+	CommentHandler *CommentHandler
+	FollowHandler  *FollowHandler
+	FriendHandler  *FriendHandler
+	LikeHandler    *LikeHandler
+	MessageHandler *MessageHandler
+	PostHandler    *PostHandler
+	UserHandler    *UserHandler
 }
-
-func NewHandlers(dbPool *pgxpool.Pool, secret string) *Handlers {
-	return &Handlers{DbPool: repository.NewStore(dbPool), Secret: secret}
+func NewHandlers(store *repository.Store, secret string) *Handlers {
+	return &Handlers{
+		AuthHandler: NewAuthHandler(store, secret),
+		UserHandler: NewUserHandler(store),
+		PostHandler: NewPostHandler(store),
+		CommentHandler: NewCommentHandler(store),
+		LikeHandler: NewLikeHandler(store),
+		FriendHandler: NewFriendHandler(store),
+		FollowHandler: NewFollowHandler(store),
+		MessageHandler: NewMessageHandler(store),
+		ChatHandler: NewChatHandler(store),
+	}
 }
