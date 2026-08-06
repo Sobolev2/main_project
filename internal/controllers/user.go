@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"errors"
 )
 
 type UserHandler struct {
@@ -29,13 +30,13 @@ func (h *UserHandler) GetMe(ctx *gin.Context) {
 	}
 	id := value.(int)
 	user, err := h.Repo.GetUserById(id)
+	if errors.Is(err, pgx.ErrNoRows) {	
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		return			
+	}
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка в получении пользователя по id"})
 		return			
-	}
-	if user.ID == 0 {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
-		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"user": user})
 }
@@ -73,12 +74,12 @@ func (h *UserHandler) UpdateUser(ctx *gin.Context) {
 		return		
 	}
 	usedUserName, err := h.Repo.GetUserByUsernameExceptId(id, updateUser.UserName)
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке уникальности username"})
 		return
 	}
 	if usedUserName.ID != 0 {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Пользователь с таким username уже существует"})
+		ctx.JSON(http.StatusConflict, gin.H{"error": "Пользователь с таким username уже существует"})
 		return
 	}
 	err = h.Repo.UpdateUser(updateUser.UserName, updateUser.FirstName, updateUser.LastName, id)
@@ -266,3 +267,4 @@ func (h *UserHandler) GetUserByUsername(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Пользователь найден", "user": user})
 }
+

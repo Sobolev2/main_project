@@ -21,7 +21,6 @@ type UserRepo interface {
 	SearchUsers(query string) ([]models.UserPublic, error)
 } 
 
-type MockStore struct{} 
 
 type Store struct {
 	db *pgxpool.Pool
@@ -49,7 +48,7 @@ func (s *Store) CreateUser(username string, firstName string, lastName string, p
 		&createdUser.LastName,
 	)
 	if err != nil {
-		return nil, err
+		return &models.UserPublic{}, err
 	}
 	return createdUser, nil
 }

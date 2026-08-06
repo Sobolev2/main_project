@@ -20,6 +20,7 @@ type AuthRepo interface {
 
 	DeleteRefreshTokenByTokenHash(tokenHash string) error
 }
+
 type Claims struct {
 	UserID int `json:"user_id"`
 	jwt.RegisteredClaims
