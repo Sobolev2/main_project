@@ -1,6 +1,6 @@
 # semen_project — Backend на Go
 
-Backend социальной сети на Go: REST API поверх PostgreSQL, слоистая архитектура (controllers → repository → routes, JWT-мидлварь на приватных маршрутах).
+Backend социальной сети на Go: REST API поверх PostgreSQL, слоистая архитектура (controllers → repository → routes, JWT-middleware на приватных маршрутах).
 
 ## Стек
 

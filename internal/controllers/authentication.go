@@ -33,9 +33,8 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 	}
 	if len(user.Password) < 8 {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-		"error": "Пароль должен содержать минимум 8 символов",
-	})
-	return
+		"error": "Пароль должен содержать минимум 8 символов"})
+		return
 	}
 	checkUserName, err := h.Repo.GetUserByUsername(user.UserName)
 	if err != nil && err != pgx.ErrNoRows {
