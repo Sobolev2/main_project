@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"semen_project/internal/models"
@@ -84,17 +85,68 @@ func (s *Store) GetUserById(id int) (models.UserPublic, error) {
 		return models.UserPublic{}, err
 	}
 
-	err = s.redis.Set(
+	if err := s.redis.Set(
 		ctx,
 		key,
 		data,
 		5*time.Minute,
-	).Err()
+	).Err(); err != nil {
+		slog.Error("failed to cache user by id", "id", id, "error", err)
+	}
+	return user, nil
+}
+func (s *Store) GetUserByUsername(username string) (models.UserPublic, error) {
+	ctx := context.Background()
+
+	key := fmt.Sprintf("user:%s", username)
+
+	cachedUser, err := s.redis.Get(ctx, key).Result()
+
+	if err == nil {
+		var user models.UserPublic
+
+		if err := json.Unmarshal([]byte(cachedUser), &user); err != nil {
+			return models.UserPublic{}, err
+		}
+
+		return user, nil
+	}
+
+	if err != redis.Nil {
+		return models.UserPublic{}, err
+	}
+
+	var user models.UserPublic
+
+	query := `
+	SELECT id, user_name, first_name, last_name
+	FROM users
+	WHERE user_name = $1
+	`
+
+	err = s.db.QueryRow(context.Background(), query, username).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.FirstName,
+		&user.LastName,
+	)
 
 	if err != nil {
 		return models.UserPublic{}, err
 	}
+	data, err := json.Marshal(user)
+	if err != nil {
+		return models.UserPublic{}, err
+	}
 
+	if err := s.redis.Set(
+		ctx,
+		key,
+		data,
+		5*time.Minute,
+	).Err(); err != nil {
+		slog.Error("failed to cache user by username", "username", username, "error", err)
+	}
 	return user, nil
 }
 func (s *Store) CreateUser(username string, firstName string, lastName string, password string) (*models.UserPublic, error) {
@@ -165,27 +217,6 @@ func (s *Store) GetUserByUsernameExceptId(id int, username string) (models.UserP
 	}
 	return user, nil
 }
-func (s *Store) GetUserByUsername(username string) (models.UserPublic, error) {
-	var user models.UserPublic
-
-	query := `
-	SELECT id, user_name, first_name, last_name
-	FROM users
-	WHERE user_name = $1
-	`
-
-	err := s.db.QueryRow(context.Background(), query, username).Scan(
-		&user.ID,
-		&user.UserName,
-		&user.FirstName,
-		&user.LastName,
-	)
-	if err != nil {
-		return models.UserPublic{}, err
-	}
-
-	return user, nil
-}
 func (s *Store) GetAllUsers() ([]models.UserPublic, error) {
 	var users []models.UserPublic
 	query := `SELECT id, user_name, first_name, last_name FROM users`
@@ -208,13 +239,34 @@ func (s *Store) GetAllUsers() ([]models.UserPublic, error) {
 	return users, nil
 }
 func (s *Store) UpdateUser(userName string, firstName string, lastName string, id int) error {
+	var oldUsername string
+
+	err := s.db.QueryRow(
+		context.Background(),
+		`SELECT user_name FROM users WHERE id = $1`,
+		id,
+	).Scan(&oldUsername)
+
+	if err != nil {
+		return err
+	}
 	query := `UPDATE users 
 	SET user_name = $2, first_name = $3, last_name = $4
 	WHERE id = $1 
 	`
-	_, err := s.db.Exec(context.Background(), query, id, userName, firstName, lastName)
+	_, err = s.db.Exec(context.Background(), query, id, userName, firstName, lastName)
 	if err != nil {
 		return err
+	}
+
+	err = s.redis.Del(context.Background(), fmt.Sprintf("user:%d", id), fmt.Sprintf("user:%s", oldUsername)).Err()
+	if err != nil {
+		slog.Error(
+			"failed to invalidate user cache after update",
+			"user_id", id,
+			"old_username", oldUsername,
+			"error", err,
+		)
 	}
 	return nil
 }
@@ -231,11 +283,42 @@ func (s *Store) UpdatePassword(id int, password string) error {
 	return nil
 }
 func (s *Store) DeleteUser(id int) error {
-	query := `DELETE FROM users WHERE id = $1`
-	_, err := s.db.Exec(context.Background(), query, id)
+	ctx := context.Background()
+
+	var username string
+
+	err := s.db.QueryRow(
+		ctx,
+		`SELECT user_name FROM users WHERE id = $1`,
+		id,
+	).Scan(&username)
 	if err != nil {
 		return err
 	}
+
+	_, err = s.db.Exec(
+		ctx,
+		`DELETE FROM users WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return err
+	}
+
+	err = s.redis.Del(
+		ctx,
+		fmt.Sprintf("user:%d", id),
+		fmt.Sprintf("user:%s", username),
+	).Err()
+	if err != nil {
+		slog.Error(
+			"failed to invalidate user cache after delete",
+			"user_id", id,
+			"username", username,
+			"error", err,
+		)
+	}
+
 	return nil
 }
 func (s *Store) SearchUsers(query string) ([]models.UserPublic, error) {
