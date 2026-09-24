@@ -4,6 +4,7 @@ import (
 	"semen_project/internal/controllers"
 	"semen_project/internal/mocks"
 	"semen_project/internal/models"
+	"semen_project/internal/repository"
 	"testing"
 
 	"net/http"
@@ -128,23 +129,23 @@ func TestUpdateUser_BadRequest(t *testing.T) {
 		name   string
 		body   string
 		userID bool
-		
+
 		// GetUserById
 		lastUser   models.UserPublic
 		getUserErr error
 
 		// GetUserByUsernameExceptId
 		checkUsername bool
-		usedUser    models.UserPublic
-		usedUserErr error
+		usedUser      models.UserPublic
+		usedUserErr   error
 
 		wantStatus int
 	}{
 		{
-			name:       "bad request body",
-			body:       "",
+			name:          "bad request body",
+			body:          "",
 			checkUsername: false,
-			wantStatus: http.StatusBadRequest,
+			wantStatus:    http.StatusBadRequest,
 		},
 		{
 			name: "not found user",
@@ -158,9 +159,9 @@ func TestUpdateUser_BadRequest(t *testing.T) {
 				UserName:  "lastUser",
 				FirstName: "last",
 				LastName:  "User"},
-			getUserErr: pgx.ErrNoRows,
+			getUserErr:    pgx.ErrNoRows,
 			checkUsername: false,
-			wantStatus: http.StatusNotFound,
+			wantStatus:    http.StatusNotFound,
 		},
 		{
 			name: "empty new username",
@@ -175,7 +176,7 @@ func TestUpdateUser_BadRequest(t *testing.T) {
 				FirstName: "last",
 				LastName:  "User"},
 			checkUsername: false,
-			wantStatus: http.StatusBadRequest,
+			wantStatus:    http.StatusBadRequest,
 		},
 		{
 			name: "data not changed",
@@ -190,7 +191,7 @@ func TestUpdateUser_BadRequest(t *testing.T) {
 				FirstName: "last",
 				LastName:  "User"},
 			checkUsername: false,
-			wantStatus: http.StatusBadRequest,
+			wantStatus:    http.StatusBadRequest,
 		},
 		{
 			name: "username already exists",
@@ -267,6 +268,14 @@ func TestUpdateUser_InternalServerError(t *testing.T) {
 
 		wantStatus int
 	}{
+		{
+			name: "userID not found",
+			body: `{
+				"user_name": "newuser",
+				"first_name": "New",
+				"last_name": "User"}`,
+			wantStatus: http.StatusInternalServerError,
+		},
 		{
 			name: "internal error GetUserByID",
 			body: `{
@@ -348,5 +357,255 @@ func TestUpdateUser_InternalServerError(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 
+	}
+}
+
+// GetAllUsers
+func TestGetAllUSers(t *testing.T) {
+	tests := []struct {
+		name           string
+		users          []models.UserPublic
+		getAllUsersErr error
+		wantStatus     int
+	}{
+		{
+			name:           "Internal error GetAllUsers",
+			getAllUsersErr: errors.New("Internal error GetAllUsers"),
+			wantStatus:     http.StatusInternalServerError,
+		},
+		{
+			name:       "success, empty users list",
+			users:      []models.UserPublic{},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "Success, users found",
+			users: []models.UserPublic{
+				{
+					ID:        1,
+					UserName:  "first_user_name",
+					FirstName: "first_name",
+					LastName:  "last_name",
+				},
+				{
+					ID:        2,
+					UserName:  "second_user_name",
+					FirstName: "first_name",
+					LastName:  "last_name",
+				},
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			mockRepo := new(mocks.MockUserRepo)
+			handler := controllers.NewUserHandler(mockRepo)
+
+			mockRepo.On("GetAllUsers").Return([]models.UserPublic{{}}, test.getAllUsersErr)
+
+			router := gin.New()
+
+			router.GET("/users", handler.GetAllUsers)
+
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/users", nil)
+			router.ServeHTTP(recorder, req)
+			assert.Equal(
+				t,
+				test.wantStatus,
+				recorder.Code,
+			)
+			mockRepo.AssertExpectations(t)
+		})
+	}
+
+}
+
+// DeleteUser
+func TestDeleteUser_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockRepo := new(mocks.MockUserRepo)
+	handler := controllers.NewUserHandler(mockRepo)
+
+	hash, _ := repository.HashPassword("password")
+
+	mockRepo.On("GetPasswordById", 1).Return(hash, nil)
+	mockRepo.On("CheckPassword", hash, "password").Return(nil)
+	mockRepo.On("DeleteUser", 1).Return(nil)
+
+	router := gin.New()
+	body := `{
+	"password": "password"
+	}`
+	router.DELETE("/user", func(c *gin.Context) {
+		c.Set("userID", 1)
+		handler.DeleteUser(c)
+	})
+	req := httptest.NewRequest(http.MethodDelete, "/user", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	mockRepo.AssertExpectations(t)
+}
+func TestDeleteUser_BadRequest(t *testing.T) {
+	hash, _ := repository.HashPassword("password")
+	tests := []struct {
+		name   string
+		body   string
+		userID bool
+
+		mockGetPassword bool
+		GetPasswordErr  error
+		lastPassword    string
+
+		mockCheckPassword bool
+		CheckPasswordErr  error
+
+		wantStatus int
+	}{
+		{
+			name:       "Bad request",
+			body:       "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Bad request, empty password",
+			body:       `{"password": ""}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:            "User not found",
+			body:            `{"password": "password"}`,
+			mockGetPassword: true,
+			GetPasswordErr:  pgx.ErrNoRows,
+			wantStatus:      http.StatusNotFound,
+		},
+		{
+			name:              "Password is not confirm",
+			body:              `{"password": "password"}`,
+			mockGetPassword:   true,
+			GetPasswordErr:    nil,
+			lastPassword:      hash,
+			mockCheckPassword: true,
+			CheckPasswordErr:  errors.New("Password is not confirm"),
+			wantStatus:        http.StatusUnauthorized,
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			mockRepo := new(mocks.MockUserRepo)
+			handler := controllers.NewUserHandler(mockRepo)
+
+			if test.mockGetPassword {
+				mockRepo.On("GetPasswordById", 1).Return(test.lastPassword, test.GetPasswordErr)
+				if test.mockCheckPassword {
+					mockRepo.On("CheckPassword", test.lastPassword, "password").Return(test.CheckPasswordErr)
+				}
+			}
+
+			router := gin.New()
+			router.DELETE("/user", func(c *gin.Context) {
+				c.Set("userID", 1)
+				handler.DeleteUser(c)
+			})
+
+			req := httptest.NewRequest(http.MethodDelete, "/user", strings.NewReader(test.body))
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, req)
+			assert.Equal(t, test.wantStatus, recorder.Code)
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+func TestDeleteUser_InternalError(t *testing.T) {
+	hash, _ := repository.HashPassword("password")
+	tests := []struct {
+		name   string
+		body   string
+		userID bool
+
+		mockGetPassword bool
+		GetPasswordErr  error
+		lastPassword    string
+
+		mockCheckPassword bool
+
+		mockDeleteUser bool
+		DeleteUserErr  error
+
+		wantStatus int
+	}{
+		{
+			name: "UserID не найден в контексте",
+			body: `{"password": "password"}`,
+
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:   "Internal error GetPasswordById",
+			body:   `{"password": "password"}`,
+			userID: true,
+
+			mockGetPassword: true,
+			GetPasswordErr:  errors.New("Database error"),
+
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:   "Internal error GetPasswordById",
+			body:   `{"password": "password"}`,
+			userID: true,
+
+			mockGetPassword: true,
+			lastPassword:    hash,
+
+			mockCheckPassword: true,
+
+			mockDeleteUser: true,
+			DeleteUserErr:  errors.New("database error"),
+
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+	gin.SetMode(gin.TestMode)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			mockRepo := new(mocks.MockUserRepo)
+			handler := controllers.NewUserHandler(mockRepo)
+
+			if test.mockGetPassword {
+				mockRepo.On("GetPasswordById", 1).Return(test.lastPassword, test.GetPasswordErr)
+				if test.mockCheckPassword {
+					mockRepo.On("CheckPassword", hash, "password").Return(nil)
+					if test.mockDeleteUser {
+						mockRepo.On("DeleteUser", 1).Return(test.DeleteUserErr)
+					}
+				}
+			}
+
+			router := gin.New()
+			router.DELETE("/user", func(c *gin.Context) {
+				if test.userID {
+					c.Set("userID", 1)
+				}
+				handler.DeleteUser(c)
+			})
+
+			req := httptest.NewRequest(http.MethodDelete, "/user", strings.NewReader(test.body))
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, req)
+			assert.Equal(t, test.wantStatus, recorder.Code)
+			mockRepo.AssertExpectations(t)
+		})
 	}
 }

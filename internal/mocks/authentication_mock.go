@@ -43,5 +43,15 @@ func (m *MockAuthRepo) DeleteRefreshTokenByTokenHash(tokenHash string) error {
 	args := m.Called(tokenHash)
 	return args.Error(0)
 }
+func (m *MockAuthRepo) GenerateAccessToken(UserID int, secret string) (string, error) {
+	args := m.Called(UserID, secret)
+	return args.Get(0).(string), args.Error(1)
+}
+func (m *MockAuthRepo) CheckPassword(hash string, password string) error {
+	args := m.Called(hash, password)
+	return args.Error(0)
+}
+
+
 
 var _ repository.AuthRepo = (*MockAuthRepo)(nil)

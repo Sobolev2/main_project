@@ -14,18 +14,21 @@ type AuthRepo interface {
 	GetPasswordById(id int) (string, error)
 	CreateUser(username, firstName, lastName, password string) (*models.UserPublic, error)
 	DeleteAllUserRefreshTokensExceptThis(userID int, tokenHash string) error
+	CheckPassword(hash string, password string) error
+
 
 	SaveRefreshToken(userID int, tokenHash string) error
 	GetRefreshTokenByTokenHash(hash string) (models.RefreshToken, error)
 
 	DeleteRefreshTokenByTokenHash(tokenHash string) error
+	GenerateAccessToken(UserID int, secret string) (string, error)
 }
 
 type Claims struct {
 	UserID int `json:"user_id"`
 	jwt.RegisteredClaims
 }
-func GenerateAccessToken(UserID int, secret string) (string, error) {
+func (s *Store) GenerateAccessToken(UserID int, secret string) (string, error) {
 	claims := Claims{
 	UserID: UserID,
 	RegisteredClaims: jwt.RegisteredClaims{

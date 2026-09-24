@@ -43,9 +43,9 @@ CREATE TABLE IF NOT EXISTS messages (
     chat_id INT NOT NULL,
     sender_id INT NOT NULL,
     content VARCHAR(10000) NOT NULL,
-    mark_read BOOLEAN DEFAULT false
+    mark_read BOOLEAN DEFAULT false,
     FOREIGN KEY (chat_id) REFERENCES chats(id),
-    FOREIGN KEY (sender_id) REFERENCES users(id),
+    FOREIGN KEY (sender_id) REFERENCES users(id)
 );
 
 

@@ -2,9 +2,15 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
 	"semen_project/internal/models"
-	"golang.org/x/crypto/bcrypt"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRepo interface {
@@ -19,17 +25,78 @@ type UserRepo interface {
 	UpdatePassword(id int, password string) error
 	DeleteUser(id int) error
 	SearchUsers(query string) ([]models.UserPublic, error)
-} 
-
+	CheckPassword(hash string, password string) error
+}
 
 type Store struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	redis *redis.Client
 }
 
-func  NewStore(db *pgxpool.Pool) *Store {
-	return &Store{db: db}
+func NewStore(db *pgxpool.Pool, redisClient *redis.Client) *Store {
+	return &Store{
+		db:    db,
+		redis: redisClient,
+	}
 }
+func (s *Store) GetUserById(id int) (models.UserPublic, error) {
+	ctx := context.Background()
 
+	key := fmt.Sprintf("user:%d", id)
+
+	cachedUser, err := s.redis.Get(ctx, key).Result()
+
+	if err == nil {
+		var user models.UserPublic
+
+		if err := json.Unmarshal([]byte(cachedUser), &user); err != nil {
+			return models.UserPublic{}, err
+		}
+
+		return user, nil
+	}
+
+	if err != redis.Nil {
+		return models.UserPublic{}, err
+	}
+
+	var user models.UserPublic
+
+	query := `
+		SELECT id, user_name, first_name, last_name
+		FROM users
+		WHERE id = $1
+	`
+
+	err = s.db.QueryRow(ctx, query, id).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.FirstName,
+		&user.LastName,
+	)
+
+	if err != nil {
+		return models.UserPublic{}, err
+	}
+
+	data, err := json.Marshal(user)
+	if err != nil {
+		return models.UserPublic{}, err
+	}
+
+	err = s.redis.Set(
+		ctx,
+		key,
+		data,
+		5*time.Minute,
+	).Err()
+
+	if err != nil {
+		return models.UserPublic{}, err
+	}
+
+	return user, nil
+}
 func (s *Store) CreateUser(username string, firstName string, lastName string, password string) (*models.UserPublic, error) {
 	query := `
 	INSERT INTO users (user_name, first_name, last_name, password)
@@ -51,23 +118,6 @@ func (s *Store) CreateUser(username string, firstName string, lastName string, p
 		return &models.UserPublic{}, err
 	}
 	return createdUser, nil
-}
-func (s *Store) GetUserById(id int) (models.UserPublic, error) {
-	var user models.UserPublic
-	query := `SELECT id, user_name, first_name, last_name
-	FROM users
-	WHERE id = $1
-	`
-	err := s.db.QueryRow(context.Background(), query, id).Scan(
-		&user.ID,
-		&user.UserName,
-		&user.FirstName,
-		&user.LastName,
-	)
-	if err != nil {
-		return models.UserPublic{}, err
-	}
-	return user, nil
 }
 func (s *Store) GetPasswordById(id int) (string, error) {
 	var password string
@@ -231,7 +281,7 @@ func (s *Store) SearchUsers(query string) ([]models.UserPublic, error) {
 
 	return users, nil
 }
-func CheckPassword(hash string, password string) error {
+func (s *Store) CheckPassword(hash string, password string) error {
 	return bcrypt.CompareHashAndPassword(
 		[]byte(hash),
 		[]byte(password),

@@ -89,7 +89,7 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка базы данных при проверке пароля"})
 		return			
 	}
-	err = repository.CheckPassword(userCheckPassword, loginData.Password)
+	err = h.Repo.CheckPassword(userCheckPassword, loginData.Password)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный UserName или пароль"})
 		return	
@@ -97,7 +97,7 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 
 	// создание токенов
 
-	accessToken, err := repository.GenerateAccessToken(usercheck.ID, h.Secret)
+	accessToken, err := h.Repo.GenerateAccessToken(usercheck.ID, h.Secret)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при генерации access токена"})
 		return
@@ -118,15 +118,19 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 }
 func (h *AuthHandler) Refresh(ctx *gin.Context) {
 	var refreshToken dto.RefreshRequest
-	err := ctx.BindJSON(&refreshToken)
+	err := ctx.ShouldBindJSON(&refreshToken)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка в request body"})
 		return		
 	}
+	if strings.TrimSpace(refreshToken.RefreshToken) == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Ошибка в request body"})
+		return
+	}
 
 	hashToken := repository.HashRefreshToken(refreshToken.RefreshToken)
 
-	RealToken, err := h.Repo.GetRefreshTokenByTokenHash(hashToken)
+	StoredToken, err := h.Repo.GetRefreshTokenByTokenHash(hashToken)
 	if err == pgx.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
 		return		
@@ -135,13 +139,13 @@ func (h *AuthHandler) Refresh(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при проверке refresh токена"})
 		return			
 	}
-	if RealToken.ExpiresAt.Before(time.Now()) {
-    _ = h.Repo.DeleteRefreshTokenByTokenHash(RealToken.TokenHash)
+	if StoredToken.ExpiresAt.Before(time.Now()) {
+    _ = h.Repo.DeleteRefreshTokenByTokenHash(StoredToken.TokenHash)
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh токен истек"})
 		return
 	}
 
-	NewAccessToken, err := repository.GenerateAccessToken(RealToken.UserID, h.Secret)
+	NewAccessToken, err := h.Repo.GenerateAccessToken(StoredToken.UserID, h.Secret)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при генерации access токена"})
 		return
@@ -181,7 +185,6 @@ func (h *AuthHandler) Logout(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Вы успешно вышли из аккаунта"})
-	// нужно ли как-то забрать у пользователя access токен??
 }
 func (h *AuthHandler) LogoutAllDevicesExceptThis(ctx *gin.Context) {
 	value, exists := ctx.Get("userID")
@@ -201,7 +204,7 @@ func (h *AuthHandler) LogoutAllDevicesExceptThis(ctx *gin.Context) {
 
 	tokenToCompare, err := h.Repo.GetRefreshTokenByTokenHash(hashThisToken)
 	if err == pgx.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Токен не найден"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
 		return		
 	}
 	if err != nil {
@@ -213,6 +216,7 @@ func (h *AuthHandler) LogoutAllDevicesExceptThis(ctx *gin.Context) {
     return
     }
 	if tokenToCompare.ExpiresAt.Before(time.Now()) {
+		_ = h.Repo.DeleteRefreshTokenByTokenHash(tokenToCompare.TokenHash)
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh токен истек"})
 		return
 	}

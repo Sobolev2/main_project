@@ -14,5 +14,5 @@ func SetupUserRoutes(r *gin.RouterGroup, h *controller.UserHandler) {
 	r.POST("/password", h.UpdatePassword)
 	r.GET("/user/:id", h.GetUserById)
 	r.GET("/users/search", h.SearchUsers)
-	r.GET("/user/:username", h.GetUserByUsername)
+	r.GET("/user/username/:username", h.GetUserByUsername)
 }

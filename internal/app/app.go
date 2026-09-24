@@ -18,7 +18,6 @@ func Run(cfg *config.Config) error {
 	ctx := context.Background()
 	slog.Info("initializing application", "app_name", cfg.AppName)
 
-	// Подключаемся к PostgreSQL
 	slog.Info("connecting to PostgreSQL database...")
 
 	dbPool, err := storage.ConnectToPg(ctx, cfg.PG, cfg.AppName)
@@ -30,8 +29,17 @@ func Run(cfg *config.Config) error {
 
 	slog.Info("PostgreSQL connection established")
 
-	store := repository.NewStore(dbPool)
-	
+	redisClient, err := storage.ConnectToRedis(ctx, "redis:6379")
+	if err != nil {
+		slog.Error("failed to connect to Redis", "error", err)
+		return fmt.Errorf("redis connection failed: %w", err)
+	}
+	defer redisClient.Close()
+
+	slog.Info("Redis connection established")
+
+	store := repository.NewStore(dbPool, redisClient)
+
 	handlers := controllers.NewHandlers(store, cfg.JWTSecret)
 
 	router := gin.Default()

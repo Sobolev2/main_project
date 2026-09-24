@@ -64,5 +64,9 @@ func (m *MockUserRepo) SearchUsers(query string) ([]models.UserPublic, error) {
 	users, _ := args.Get(0).([]models.UserPublic)
 	return users, args.Error(1)
 }
+func (m *MockUserRepo) CheckPassword(hash string, password string) error {
+	args := m.Called(hash, password)
+	return args.Error(0)
+}
 
 var _ repository.UserRepo = (*MockUserRepo)(nil)
