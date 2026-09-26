@@ -3,16 +3,24 @@ package controllers
 import (
 	"net/http"
 	"strconv"
-	"github.com/jackc/pgx/v5"
+
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+
+	"semen_project/internal/events"
+	"semen_project/internal/kafka"
 	"semen_project/internal/repository"
 )
+
 type LikeHandler struct {
-	Repo repository.LikeRepo
+	Repo     repository.LikeRepo
+	Producer *kafka.Producer
 }
-func NewLikeHandler(repo repository.LikeRepo) *LikeHandler {
+
+func NewLikeHandler(repo repository.LikeRepo, producer *kafka.Producer) *LikeHandler {
 	return &LikeHandler{
-		Repo: repo,
+		Repo:     repo,
+		Producer: producer,
 	}
 }
 func (h *LikeHandler) LikePost(ctx *gin.Context) {
@@ -62,6 +70,17 @@ func (h *LikeHandler) LikePost(ctx *gin.Context) {
 		return
 	}
 
+	event := events.PostLiked{
+		Event:  "PostLiked",
+		PostID: postID,
+		UserID: userID,
+	}
+
+	err = h.Producer.PublishPostLiked(ctx, event)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при отправке события"})
+		return
+	}
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Лайк поставлен"})
 }
 func (h *LikeHandler) DeleteLike(ctx *gin.Context) {
@@ -119,8 +138,8 @@ func (h *LikeHandler) GetAllPostLikes(ctx *gin.Context) {
 	}
 
 	if err != nil {
-	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
-	return
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
+		return
 	}
 
 	likes, err := h.Repo.GetAllPostLikes(postID)
@@ -145,8 +164,8 @@ func (h *LikeHandler) GetCountLikes(ctx *gin.Context) {
 		return
 	}
 	if err != nil {
-	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
-	return
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
+		return
 	}
 
 	count, err := h.Repo.GetCountLikes(postID)
@@ -171,8 +190,8 @@ func (h *LikeHandler) GetAllUserLikes(ctx *gin.Context) {
 		return
 	}
 	if err != nil {
-	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
-	return
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при получении поста"})
+		return
 	}
 
 	likes, err := h.Repo.GetAllUserLikes(userID)

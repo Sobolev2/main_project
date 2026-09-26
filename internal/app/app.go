@@ -12,6 +12,7 @@ import (
 	"semen_project/internal/storage"
 
 	"github.com/gin-gonic/gin"
+	"semen_project/internal/kafka"
 )
 
 func Run(cfg *config.Config) error {
@@ -29,7 +30,7 @@ func Run(cfg *config.Config) error {
 
 	slog.Info("PostgreSQL connection established")
 
-	redisClient, err := storage.ConnectToRedis(ctx, "redis:6379")
+	redisClient, err := storage.ConnectToRedis(ctx, "localhost:6379")
 	if err != nil {
 		slog.Error("failed to connect to Redis", "error", err)
 		return fmt.Errorf("redis connection failed: %w", err)
@@ -40,7 +41,10 @@ func Run(cfg *config.Config) error {
 
 	store := repository.NewStore(dbPool, redisClient)
 
-	handlers := controllers.NewHandlers(store, cfg.JWTSecret)
+	producer := kafka.NewProducer()
+	defer producer.Close()
+
+	handlers := controllers.NewHandlers(store, cfg.JWTSecret, producer)
 
 	router := gin.Default()
 	routes.SetupRoutes(router, handlers, cfg.JWTSecret)
