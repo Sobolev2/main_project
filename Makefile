@@ -1,43 +1,56 @@
-.PHONY: help build run test migrate-up migrate-down migrate-create docker-build docker-up docker-down clean
+
+.PHONY: help build run test deps migrate-up migrate-down migrate-create \
+        docker-build docker-up docker-down docker-logs docker-restart \
+        clean lint fmt dev install-tools
 
 # Variables
-APP_NAME=devx-service-backend
-MIGRATIONS_DIR=./migrations
-DOCKER_COMPOSE=docker-compose
+APP_NAME := devx-service-backend
+BACKEND_DIR := ./backend-service
+MIGRATIONS_DIR := $(BACKEND_DIR)/migrations
+DOCKER_COMPOSE := docker compose
 
-help: ## Show this help message
+.DEFAULT_GOAL := help
+
+help: ## Show available commands
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-build: ## Build the application
+# ==========================
+# Backend
+# ==========================
+
+build: ## Build the backend application
 	@echo "Building $(APP_NAME)..."
-	go build -o bin/$(APP_NAME) main.go
-	go build -o bin/migrator cmd/migrator/main.go
+	cd $(BACKEND_DIR) && mkdir -p bin
+	cd $(BACKEND_DIR) && go build -o bin/project ./cmd/project
+	cd $(BACKEND_DIR) && go build -o bin/migrator ./cmd/migrator
 
-run: ## Run the application locally
-	@echo "Running $(APP_NAME)..."
-	go run cmd/app/main.go
+run: ## Run backend locally
+	cd $(BACKEND_DIR) && go run ./cmd/project
 
-test: ## Run tests
+test: ## Run backend tests
 	@echo "Running tests..."
-	go test -v ./...
+	cd $(BACKEND_DIR) && go test -v ./...
 
-deps: ## Install dependencies
+deps: ## Download and tidy backend dependencies
 	@echo "Installing dependencies..."
-	go mod download
-	go mod tidy
+	cd $(BACKEND_DIR) && go mod download && go mod tidy
 
-migrate-up: ## Run database migrations up
+# ==========================
+# Database migrations
+# ==========================
+
+migrate-up: ## Apply database migrations locally
 	@echo "Running migrations up..."
-	go run cmd/migrator/main.go $(MIGRATIONS_DIR) up
+	cd $(BACKEND_DIR) && go run ./cmd/migrator migrations up
 
-migrate-down: ## Rollback last migration
-	@echo "Rolling back last migration..."
-	go run cmd/migrator/main.go $(MIGRATIONS_DIR) down
+migrate-down: ## Roll back database migration locally
+	@echo "Rolling back migration..."
+	cd $(BACKEND_DIR) && go run ./cmd/migrator migrations down
 
-migrate-create: ## Create a new migration file (usage: make migrate-create NAME=add_users_table)
+migrate-create: ## Create migration (NAME=add_users_table)
 	@if [ -z "$(NAME)" ]; then \
 		echo "Error: NAME is required. Usage: make migrate-create NAME=your_migration_name"; \
 		exit 1; \
@@ -47,60 +60,64 @@ migrate-create: ## Create a new migration file (usage: make migrate-create NAME=
 	FILE_NUM=$$(printf "%05d" $$NEXT_NUM); \
 	FILENAME="$(MIGRATIONS_DIR)/$${FILE_NUM}_$(NAME).sql"; \
 	echo "Creating migration: $$FILENAME"; \
-	echo "-- +goose Up" > $$FILENAME; \
-	echo "-- +goose StatementBegin" >> $$FILENAME; \
-	echo "-- Write your UP migration here" >> $$FILENAME; \
-	echo "-- +goose StatementEnd" >> $$FILENAME; \
-	echo "" >> $$FILENAME; \
-	echo "-- +goose Down" >> $$FILENAME; \
-	echo "-- +goose StatementBegin" >> $$FILENAME; \
-	echo "-- Write your DOWN migration here" >> $$FILENAME; \
-	echo "-- +goose StatementEnd" >> $$FILENAME; \
+	echo "-- +goose Up" > "$$FILENAME"; \
+	echo "-- +goose StatementBegin" >> "$$FILENAME"; \
+	echo "-- Write your UP migration here" >> "$$FILENAME"; \
+	echo "-- +goose StatementEnd" >> "$$FILENAME"; \
+	echo "" >> "$$FILENAME"; \
+	echo "-- +goose Down" >> "$$FILENAME"; \
+	echo "-- +goose StatementBegin" >> "$$FILENAME"; \
+	echo "-- Write your DOWN migration here" >> "$$FILENAME"; \
+	echo "-- +goose StatementEnd" >> "$$FILENAME"; \
 	echo "Migration created: $$FILENAME"
+
+# ==========================
+# Docker
+# ==========================
 
 docker-build: ## Build Docker images
 	@echo "Building Docker images..."
 	$(DOCKER_COMPOSE) build
 
-docker-up: ## Start Docker containers with migrations
+docker-up: ## Start all containers (migrations run automatically)
 	@echo "Starting Docker containers..."
-	$(DOCKER_COMPOSE) up -d
-	@echo "Waiting for database to be ready..."
-	@sleep 5
-	@echo "Running migrations..."
-	@$(DOCKER_COMPOSE) exec -T backend go run cmd/migrator/main.go ./migrations up || true
-	@echo "Application is ready!"
+	$(DOCKER_COMPOSE) up -d --build
+	@echo "Application is ready on http://localhost:8080"
 
-docker-down: ## Stop Docker containers
+docker-down: ## Stop all containers without deleting volumes
 	@echo "Stopping Docker containers..."
 	$(DOCKER_COMPOSE) down
 
-docker-logs: ## Show Docker logs
+docker-logs: ## Show Docker container logs
 	$(DOCKER_COMPOSE) logs -f
 
-docker-restart: docker-down docker-up ## Restart Docker containers
+docker-restart: docker-down docker-up ## Restart all containers
 
-clean: ## Clean build artifacts
+# ==========================
+# Development
+# ==========================
+
+clean: ## Remove backend build artifacts
 	@echo "Cleaning..."
-	rm -rf bin/
-	go clean
+	cd $(BACKEND_DIR) && rm -rf bin/
+	cd $(BACKEND_DIR) && go clean
 
-lint: ## Run linter
+lint: ## Run backend linter
 	@echo "Running linter..."
-	golangci-lint run
+	cd $(BACKEND_DIR) && golangci-lint run
 
-fmt: ## Format code
+fmt: ## Format backend Go code
 	@echo "Formatting code..."
-	go fmt ./...
-	gofmt -s -w .
+	cd $(BACKEND_DIR) && go fmt ./...
+	cd $(BACKEND_DIR) && gofmt -s -w ./cmd ./internal
 
-dev: ## Run in development mode with auto-reload (requires air)
-	@echo "Running in development mode..."
-	air
+dev: ## Run backend with hot reload (requires Air)
+	@echo "Starting development mode..."
+	cd $(BACKEND_DIR) && air
 
 install-tools: ## Install development tools
 	@echo "Installing development tools..."
-	go install github.com/cosmtrek/air@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	cd $(BACKEND_DIR) && go install github.com/air-verse/air@latest
+	cd $(BACKEND_DIR) && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
-.DEFAULT_GOAL := help
+

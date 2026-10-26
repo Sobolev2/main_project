@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package notification.v1;
+
+option go_package = "semen_project/proto/gen/notificationpb";
+
+service NotificationService {
+    rpc GetNotifications(GetNotificationsRequest)
+        returns (GetNotificationsResponse);
+
+    rpc GetUnreadCount(GetUnreadCountRequest)
+        returns (GetUnreadCountResponse);
+
+    rpc MarkAsRead(MarkAsReadRequest)
+        returns (MarkAsReadResponse);
+}
+
+message Notification {
+    int64 id = 1;
+    int64 user_id = 2;
+    int64 sender_id = 3;
+    int64 message_id = 4;
+    string type = 5;
+    bool is_read = 6;
+    string created_at = 7;
+}
+
+message GetNotificationsRequest {
+    int64 user_id = 1;
+    int32 limit = 2;
+    int32 offset = 3;
+}
+
+message GetNotificationsResponse {
+    repeated Notification notifications = 1;
+}
+
+message GetUnreadCountRequest {
+    int64 user_id = 1;
+}
+
+message GetUnreadCountResponse {
+    int64 count = 1;
+}
+
+message MarkAsReadRequest {
+    int64 user_id = 1;
+    int64 notification_id = 2;
+}
+
+message MarkAsReadResponse {
+    bool success = 1;
+}
